@@ -14,7 +14,143 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      chips: {
+        Row: {
+          api_usada: string
+          created_at: string
+          data_limite: string | null
+          id: string
+          numero: string
+          token: string | null
+          ultima_recarga: string
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          api_usada: string
+          created_at?: string
+          data_limite?: string | null
+          id?: string
+          numero: string
+          token?: string | null
+          ultima_recarga: string
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          api_usada?: string
+          created_at?: string
+          data_limite?: string | null
+          id?: string
+          numero?: string
+          token?: string | null
+          ultima_recarga?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
+      client_reports: {
+        Row: {
+          ano: number
+          client_id: string
+          created_at: string
+          id: string
+          mes: number
+          total_api: number | null
+          total_chips: number | null
+          total_geral: number | null
+        }
+        Insert: {
+          ano: number
+          client_id: string
+          created_at?: string
+          id?: string
+          mes: number
+          total_api?: number | null
+          total_chips?: number | null
+          total_geral?: number | null
+        }
+        Update: {
+          ano?: number
+          client_id?: string
+          created_at?: string
+          id?: string
+          mes?: number
+          total_api?: number | null
+          total_chips?: number | null
+          total_geral?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_reports_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          apis: string[] | null
+          chips: string[] | null
+          created_at: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          apis?: string[] | null
+          chips?: string[] | null
+          created_at?: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          apis?: string[] | null
+          chips?: string[] | null
+          created_at?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      openai_accounts: {
+        Row: {
+          api_key: string
+          atualizado_em: string | null
+          created_at: string
+          endpoint: string | null
+          gasto_atual: number | null
+          id: string
+          nome: string
+          tipo: string
+        }
+        Insert: {
+          api_key: string
+          atualizado_em?: string | null
+          created_at?: string
+          endpoint?: string | null
+          gasto_atual?: number | null
+          id?: string
+          nome: string
+          tipo?: string
+        }
+        Update: {
+          api_key?: string
+          atualizado_em?: string | null
+          created_at?: string
+          endpoint?: string | null
+          gasto_atual?: number | null
+          id?: string
+          nome?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
