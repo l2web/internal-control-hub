@@ -1,8 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -38,7 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, FileText, Download } from "lucide-react";
+import { Plus, Trash2, FileText, Download, Loader2 } from "lucide-react";
 import { useReports, useCreateReport, useDeleteReport } from "@/hooks/use-reports";
 import { useClients } from "@/hooks/use-clients";
 import { useChips } from "@/hooks/use-chips";
@@ -46,6 +45,7 @@ import { useOpenAIAccounts } from "@/hooks/use-openai-accounts";
 import { formatCurrency } from "@/lib/date-utils";
 import { StatCard } from "@/components/ui/stat-card";
 import { motion } from "framer-motion";
+import jsPDF from "jspdf";
 
 const MONTHS = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -74,6 +74,29 @@ export default function ReportsPage() {
     total_chips: 0,
     total_api: 0,
   });
+
+  // Calculate totals automatically when client, month, and year change
+  useEffect(() => {
+    if (!formData.client_id) {
+      setFormData(prev => ({ ...prev, total_chips: 0, total_api: 0 }));
+      return;
+    }
+
+    // Calculate chips total - count chips belonging to this client
+    const clientChips = chips.filter(chip => chip.client_id === formData.client_id);
+    // For chips, we'll estimate a fixed cost per chip (you can adjust this logic)
+    const chipsTotal = clientChips.length * 50; // R$ 50 per chip as example
+
+    // Calculate API total - sum gasto_atual from accounts belonging to this client
+    const clientAccounts = accounts.filter(acc => acc.client_id === formData.client_id);
+    const apiTotal = clientAccounts.reduce((sum, acc) => sum + (acc.gasto_atual || 0), 0);
+
+    setFormData(prev => ({
+      ...prev,
+      total_chips: chipsTotal,
+      total_api: apiTotal,
+    }));
+  }, [formData.client_id, formData.mes, formData.ano, chips, accounts]);
 
   const filteredReports = useMemo(() => {
     if (!selectedClient || selectedClient === "all") return reports;
@@ -120,27 +143,56 @@ export default function ReportsPage() {
   };
 
   const handleExportPDF = (report: typeof reports[0]) => {
-    // Simple PDF export simulation - in production, use a library like jsPDF
-    const content = `
-RELATÓRIO MENSAL - ${MONTHS[report.mes - 1]} ${report.ano}
-Cliente: ${getClientName(report.client_id)}
-
-RESUMO FINANCEIRO
-━━━━━━━━━━━━━━━━━
-Total Chips: ${formatCurrency(report.total_chips)}
-Total API: ${formatCurrency(report.total_api)}
-━━━━━━━━━━━━━━━━━
-TOTAL GERAL: ${formatCurrency(report.total_geral)}
-
-Gerado em: ${new Date().toLocaleString('pt-BR')}
-    `;
+    const doc = new jsPDF();
+    const clientName = getClientName(report.client_id);
     
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `relatorio_${getClientName(report.client_id)}_${report.mes}_${report.ano}.txt`;
-    a.click();
+    // Header
+    doc.setFontSize(20);
+    doc.setFont("helvetica", "bold");
+    doc.text("RELATÓRIO MENSAL", 105, 25, { align: "center" });
+    
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${MONTHS[report.mes - 1]} ${report.ano}`, 105, 35, { align: "center" });
+    
+    // Client info
+    doc.setFontSize(12);
+    doc.text(`Cliente: ${clientName}`, 20, 55);
+    
+    // Line separator
+    doc.setLineWidth(0.5);
+    doc.line(20, 65, 190, 65);
+    
+    // Financial summary title
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("RESUMO FINANCEIRO", 20, 80);
+    
+    // Values
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Total Chips:`, 20, 95);
+    doc.text(formatCurrency(report.total_chips), 190, 95, { align: "right" });
+    
+    doc.text(`Total API:`, 20, 107);
+    doc.text(formatCurrency(report.total_api), 190, 107, { align: "right" });
+    
+    // Line separator
+    doc.line(20, 115, 190, 115);
+    
+    // Total
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text(`TOTAL GERAL:`, 20, 128);
+    doc.text(formatCurrency(report.total_geral), 190, 128, { align: "right" });
+    
+    // Footer
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 20, 280);
+    
+    // Save PDF
+    doc.save(`relatorio_${clientName.replace(/\s+/g, '_')}_${report.mes}_${report.ano}.pdf`);
   };
 
   return (
@@ -323,30 +375,30 @@ Gerado em: ${new Date().toLocaleString('pt-BR')}
                 </Select>
               </div>
             </div>
-            <div>
-              <Label>Total de Chips (R$)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={formData.total_chips}
-                onChange={(e) => setFormData({ ...formData, total_chips: parseFloat(e.target.value) || 0 })}
-                placeholder="0.00"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 rounded-lg bg-muted/50">
+                <p className="text-sm text-muted-foreground">Total Chips</p>
+                <p className="text-lg font-semibold">
+                  {formData.client_id ? formatCurrency(formData.total_chips) : "Selecione um cliente"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {formData.client_id ? `${chips.filter(c => c.client_id === formData.client_id).length} chips` : ""}
+                </p>
+              </div>
+              <div className="p-4 rounded-lg bg-muted/50">
+                <p className="text-sm text-muted-foreground">Total API</p>
+                <p className="text-lg font-semibold">
+                  {formData.client_id ? formatCurrency(formData.total_api) : "Selecione um cliente"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {formData.client_id ? `${accounts.filter(a => a.client_id === formData.client_id).length} contas` : ""}
+                </p>
+              </div>
             </div>
-            <div>
-              <Label>Total de API (R$)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={formData.total_api}
-                onChange={(e) => setFormData({ ...formData, total_api: parseFloat(e.target.value) || 0 })}
-                placeholder="0.00"
-              />
-            </div>
-            <div className="p-4 rounded-lg bg-muted/50">
+            <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
               <p className="text-sm text-muted-foreground">Total Geral</p>
-              <p className="text-2xl font-bold">
-                {formatCurrency(formData.total_chips + formData.total_api)}
+              <p className="text-2xl font-bold text-primary">
+                {formData.client_id ? formatCurrency(formData.total_chips + formData.total_api) : "R$ 0,00"}
               </p>
             </div>
           </div>
