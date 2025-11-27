@@ -47,11 +47,13 @@ import {
   useSyncOpenAIUsage,
   OpenAIAccount,
 } from "@/hooks/use-openai-accounts";
+import { useClients } from "@/hooks/use-clients";
 import { formatDate, formatCurrency } from "@/lib/date-utils";
 import { motion } from "framer-motion";
 
 export default function OpenAIPage() {
   const { data: accounts = [], isLoading } = useOpenAIAccounts();
+  const { data: clients = [] } = useClients();
   const createAccount = useCreateOpenAIAccount();
   const updateAccount = useUpdateOpenAIAccount();
   const deleteAccount = useDeleteOpenAIAccount();
@@ -61,13 +63,21 @@ export default function OpenAIPage() {
   const [editingAccount, setEditingAccount] = useState<OpenAIAccount | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({});
+  const [viewingAccount, setViewingAccount] = useState<OpenAIAccount | null>(null);
 
   const [formData, setFormData] = useState({
     nome: "",
     api_key: "",
     tipo: "individual",
     endpoint: "https://api.openai.com/v1",
+    client_id: null as string | null,
   });
+
+  const getClientName = (clientId: string | null) => {
+    if (!clientId) return "—";
+    const client = clients.find((c) => c.id === clientId);
+    return client?.nome || "—";
+  };
 
   const handleOpenDialog = (account?: OpenAIAccount) => {
     if (account) {
@@ -77,6 +87,7 @@ export default function OpenAIPage() {
         api_key: account.api_key,
         tipo: account.tipo,
         endpoint: account.endpoint || "https://api.openai.com/v1",
+        client_id: account.client_id,
       });
     } else {
       setEditingAccount(null);
@@ -85,6 +96,7 @@ export default function OpenAIPage() {
         api_key: "",
         tipo: "individual",
         endpoint: "https://api.openai.com/v1",
+        client_id: null,
       });
     }
     setIsDialogOpen(true);
@@ -132,6 +144,7 @@ export default function OpenAIPage() {
                 <TableHeader>
                   <TableRow className="bg-muted/50">
                     <TableHead>Nome</TableHead>
+                    <TableHead>Cliente</TableHead>
                     <TableHead>API Key</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead>Gasto Atual</TableHead>
@@ -142,20 +155,25 @@ export default function OpenAIPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         Carregando...
                       </TableCell>
                     </TableRow>
                   ) : accounts.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         Nenhuma conta cadastrada
                       </TableCell>
                     </TableRow>
                   ) : (
                     accounts.map((account, index) => (
-                      <TableRow key={account.id} className={index % 2 === 0 ? "bg-muted/20" : ""}>
+                      <TableRow
+                        key={account.id}
+                        className={`${index % 2 === 0 ? "bg-muted/20" : ""} cursor-pointer hover:bg-muted/40`}
+                        onClick={() => setViewingAccount(account)}
+                      >
                         <TableCell className="font-medium">{account.nome}</TableCell>
+                        <TableCell>{getClientName(account.client_id)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <code className="text-xs bg-muted px-2 py-1 rounded">
@@ -165,7 +183,10 @@ export default function OpenAIPage() {
                               size="icon"
                               variant="ghost"
                               className="h-6 w-6"
-                              onClick={() => toggleApiKeyVisibility(account.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleApiKeyVisibility(account.id);
+                              }}
                             >
                               {showApiKey[account.id] ? (
                                 <EyeOff className="w-3 h-3" />
@@ -191,19 +212,32 @@ export default function OpenAIPage() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              onClick={() => syncUsage.mutate(account.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                syncUsage.mutate(account.id);
+                              }}
                               disabled={syncUsage.isPending}
                             >
                               <RefreshCw className={`w-4 h-4 ${syncUsage.isPending ? "animate-spin" : ""}`} />
                             </Button>
-                            <Button size="icon" variant="ghost" onClick={() => handleOpenDialog(account)}>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenDialog(account);
+                              }}
+                            >
                               <Pencil className="w-4 h-4" />
                             </Button>
                             <Button
                               size="icon"
                               variant="ghost"
                               className="text-destructive"
-                              onClick={() => setDeleteId(account.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteId(account.id);
+                              }}
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -219,6 +253,7 @@ export default function OpenAIPage() {
         </Card>
       </motion.div>
 
+      {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -232,6 +267,25 @@ export default function OpenAIPage() {
                 onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                 placeholder="Conta principal, Backup, etc."
               />
+            </div>
+            <div>
+              <Label>Cliente</Label>
+              <Select
+                value={formData.client_id || "none"}
+                onValueChange={(value) => setFormData({ ...formData, client_id: value === "none" ? null : value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>API Key</Label>
@@ -269,6 +323,84 @@ export default function OpenAIPage() {
             </Button>
             <Button onClick={handleSubmit} disabled={!formData.nome || !formData.api_key}>
               {editingAccount ? "Salvar" : "Criar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Detail Dialog */}
+      <Dialog open={!!viewingAccount} onOpenChange={() => setViewingAccount(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Detalhes da Conta</DialogTitle>
+          </DialogHeader>
+          {viewingAccount && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground text-xs">Nome</Label>
+                  <p className="font-medium">{viewingAccount.nome}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Cliente</Label>
+                  <p className="font-medium">{getClientName(viewingAccount.client_id)}</p>
+                </div>
+              </div>
+              <div>
+                <Label className="text-muted-foreground text-xs">API Key</Label>
+                <div className="flex items-center gap-2">
+                  <code className="text-sm bg-muted px-2 py-1 rounded flex-1 overflow-auto">
+                    {maskApiKey(viewingAccount.api_key, showApiKey[`view-${viewingAccount.id}`] || false)}
+                  </code>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    onClick={() => setShowApiKey((prev) => ({ ...prev, [`view-${viewingAccount.id}`]: !prev[`view-${viewingAccount.id}`] }))}
+                  >
+                    {showApiKey[`view-${viewingAccount.id}`] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground text-xs">Tipo de Acesso</Label>
+                  <Badge variant={viewingAccount.tipo === "organizacional" ? "default" : "secondary"}>
+                    {viewingAccount.tipo}
+                  </Badge>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Gasto Atual</Label>
+                  <p className="font-medium">{formatCurrency(viewingAccount.gasto_atual)}</p>
+                </div>
+              </div>
+              <div>
+                <Label className="text-muted-foreground text-xs">Endpoint</Label>
+                <p className="text-sm break-all">{viewingAccount.endpoint || "https://api.openai.com/v1"}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground text-xs">Criado em</Label>
+                  <p className="text-sm">{formatDate(viewingAccount.created_at)}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Última Sincronização</Label>
+                  <p className="text-sm">{formatDate(viewingAccount.atualizado_em)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewingAccount(null)}>
+              Fechar
+            </Button>
+            <Button onClick={() => {
+              if (viewingAccount) {
+                handleOpenDialog(viewingAccount);
+                setViewingAccount(null);
+              }
+            }}>
+              Editar
             </Button>
           </DialogFooter>
         </DialogContent>
