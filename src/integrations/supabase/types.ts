@@ -17,6 +17,7 @@ export type Database = {
       chips: {
         Row: {
           api_usada: string
+          client_id: string | null
           created_at: string
           data_limite: string | null
           id: string
@@ -28,6 +29,7 @@ export type Database = {
         }
         Insert: {
           api_usada: string
+          client_id?: string | null
           created_at?: string
           data_limite?: string | null
           id?: string
@@ -39,6 +41,7 @@ export type Database = {
         }
         Update: {
           api_usada?: string
+          client_id?: string | null
           created_at?: string
           data_limite?: string | null
           id?: string
@@ -48,7 +51,15 @@ export type Database = {
           updated_at?: string
           url?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "chips_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       client_reports: {
         Row: {

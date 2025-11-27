@@ -10,6 +10,7 @@ export interface Chip {
   url: string | null;
   ultima_recarga: string;
   data_limite: string;
+  client_id: string | null;
   created_at: string;
   updated_at: string;
 }
