@@ -133,6 +133,7 @@ export type Database = {
         Row: {
           api_key: string
           atualizado_em: string | null
+          client_id: string | null
           created_at: string
           endpoint: string | null
           gasto_atual: number | null
@@ -143,6 +144,7 @@ export type Database = {
         Insert: {
           api_key: string
           atualizado_em?: string | null
+          client_id?: string | null
           created_at?: string
           endpoint?: string | null
           gasto_atual?: number | null
@@ -153,6 +155,7 @@ export type Database = {
         Update: {
           api_key?: string
           atualizado_em?: string | null
+          client_id?: string | null
           created_at?: string
           endpoint?: string | null
           gasto_atual?: number | null
@@ -160,7 +163,15 @@ export type Database = {
           nome?: string
           tipo?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "openai_accounts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

@@ -11,6 +11,7 @@ export interface OpenAIAccount {
   gasto_atual: number | null;
   atualizado_em: string | null;
   created_at: string;
+  client_id: string | null;
 }
 
 export type OpenAIAccountInsert = Omit<OpenAIAccount, "id" | "created_at" | "gasto_atual" | "atualizado_em">;
