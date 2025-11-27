@@ -38,13 +38,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Eye, X } from "lucide-react";
 import { useChips, useCreateChip, useUpdateChip, useDeleteChip, Chip } from "@/hooks/use-chips";
+import { useClients } from "@/hooks/use-clients";
 import { formatDate, getDaysUntilExpiry, getExpiryStatus } from "@/lib/date-utils";
 import { motion } from "framer-motion";
 
 export default function ChipsPage() {
   const { data: chips = [], isLoading } = useChips();
+  const { data: clients = [] } = useClients();
   const createChip = useCreateChip();
   const updateChip = useUpdateChip();
   const deleteChip = useDeleteChip();
@@ -54,6 +56,7 @@ export default function ChipsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingChip, setEditingChip] = useState<Chip | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [viewingChip, setViewingChip] = useState<Chip | null>(null);
 
   const [formData, setFormData] = useState({
     numero: "",
@@ -61,6 +64,7 @@ export default function ChipsPage() {
     token: "",
     url: "",
     ultima_recarga: "",
+    client_id: "",
   });
 
   const filteredChips = useMemo(() => {
@@ -78,6 +82,12 @@ export default function ChipsPage() {
     });
   }, [chips, search, filterExpiry]);
 
+  const getClientName = (clientId: string | null) => {
+    if (!clientId) return "Sem cliente";
+    const client = clients.find((c) => c.id === clientId);
+    return client?.nome || "Cliente não encontrado";
+  };
+
   const handleOpenDialog = (chip?: Chip) => {
     if (chip) {
       setEditingChip(chip);
@@ -87,6 +97,7 @@ export default function ChipsPage() {
         token: chip.token || "",
         url: chip.url || "",
         ultima_recarga: chip.ultima_recarga,
+        client_id: chip.client_id || "",
       });
     } else {
       setEditingChip(null);
@@ -96,16 +107,21 @@ export default function ChipsPage() {
         token: "",
         url: "",
         ultima_recarga: new Date().toISOString().split("T")[0],
+        client_id: "",
       });
     }
     setIsDialogOpen(true);
   };
 
   const handleSubmit = () => {
+    const dataToSave = {
+      ...formData,
+      client_id: formData.client_id || null,
+    };
     if (editingChip) {
-      updateChip.mutate({ id: editingChip.id, ...formData });
+      updateChip.mutate({ id: editingChip.id, ...dataToSave });
     } else {
-      createChip.mutate(formData);
+      createChip.mutate(dataToSave);
     }
     setIsDialogOpen(false);
   };
@@ -175,6 +191,7 @@ export default function ChipsPage() {
                   <TableRow className="bg-muted/50">
                     <TableHead>Número</TableHead>
                     <TableHead>API</TableHead>
+                    <TableHead>Cliente</TableHead>
                     <TableHead>Última Recarga</TableHead>
                     <TableHead>Data Limite</TableHead>
                     <TableHead>Status</TableHead>
@@ -184,26 +201,34 @@ export default function ChipsPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         Carregando...
                       </TableCell>
                     </TableRow>
                   ) : filteredChips.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         Nenhum chip encontrado
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredChips.map((chip, index) => (
-                      <TableRow key={chip.id} className={index % 2 === 0 ? "bg-muted/20" : ""}>
+                      <TableRow 
+                        key={chip.id} 
+                        className={`${index % 2 === 0 ? "bg-muted/20" : ""} cursor-pointer hover:bg-muted/40`}
+                        onClick={() => setViewingChip(chip)}
+                      >
                         <TableCell className="font-medium">{chip.numero}</TableCell>
                         <TableCell>{chip.api_usada}</TableCell>
+                        <TableCell>{getClientName(chip.client_id)}</TableCell>
                         <TableCell>{formatDate(chip.ultima_recarga)}</TableCell>
                         <TableCell>{formatDate(chip.data_limite)}</TableCell>
                         <TableCell>{getStatusBadge(chip.data_limite)}</TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                            <Button size="icon" variant="ghost" onClick={() => setViewingChip(chip)}>
+                              <Eye className="w-4 h-4" />
+                            </Button>
                             <Button size="icon" variant="ghost" onClick={() => handleOpenDialog(chip)}>
                               <Pencil className="w-4 h-4" />
                             </Button>
@@ -222,6 +247,7 @@ export default function ChipsPage() {
         </Card>
       </motion.div>
 
+      {/* Form Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -243,6 +269,25 @@ export default function ChipsPage() {
                 onChange={(e) => setFormData({ ...formData, api_usada: e.target.value })}
                 placeholder="Evolution, Z-API, etc."
               />
+            </div>
+            <div>
+              <Label>Cliente</Label>
+              <Select 
+                value={formData.client_id || "none"} 
+                onValueChange={(value) => setFormData({ ...formData, client_id: value === "none" ? "" : value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem cliente</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Token da API</Label>
@@ -275,6 +320,78 @@ export default function ChipsPage() {
             </Button>
             <Button onClick={handleSubmit} disabled={!formData.numero || !formData.api_usada || !formData.ultima_recarga}>
               {editingChip ? "Salvar" : "Criar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail Modal */}
+      <Dialog open={!!viewingChip} onOpenChange={() => setViewingChip(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              Detalhes do Chip
+            </DialogTitle>
+          </DialogHeader>
+          {viewingChip && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground text-sm">Número</Label>
+                  <p className="font-medium">{viewingChip.numero}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-sm">API Utilizada</Label>
+                  <p className="font-medium">{viewingChip.api_usada}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-sm">Cliente</Label>
+                  <p className="font-medium">{getClientName(viewingChip.client_id)}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-sm">Status</Label>
+                  <div className="mt-1">{getStatusBadge(viewingChip.data_limite)}</div>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-sm">Última Recarga</Label>
+                  <p className="font-medium">{formatDate(viewingChip.ultima_recarga)}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-sm">Data Limite</Label>
+                  <p className="font-medium">{formatDate(viewingChip.data_limite)}</p>
+                </div>
+              </div>
+              {viewingChip.token && (
+                <div>
+                  <Label className="text-muted-foreground text-sm">Token</Label>
+                  <p className="font-mono text-sm bg-muted p-2 rounded break-all">{viewingChip.token}</p>
+                </div>
+              )}
+              {viewingChip.url && (
+                <div>
+                  <Label className="text-muted-foreground text-sm">URL da API</Label>
+                  <p className="font-mono text-sm bg-muted p-2 rounded break-all">{viewingChip.url}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
+                <div>
+                  <Label className="text-muted-foreground text-sm">Criado em</Label>
+                  <p>{formatDate(viewingChip.created_at)}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-sm">Atualizado em</Label>
+                  <p>{formatDate(viewingChip.updated_at)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewingChip(null)}>
+              Fechar
+            </Button>
+            <Button onClick={() => { setViewingChip(null); handleOpenDialog(viewingChip!); }}>
+              <Pencil className="w-4 h-4 mr-2" />
+              Editar
             </Button>
           </DialogFooter>
         </DialogContent>
