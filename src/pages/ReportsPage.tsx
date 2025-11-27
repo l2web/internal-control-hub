@@ -76,7 +76,7 @@ export default function ReportsPage() {
   });
 
   const filteredReports = useMemo(() => {
-    if (!selectedClient) return reports;
+    if (!selectedClient || selectedClient === "all") return reports;
     return reports.filter((r) => r.client_id === selectedClient);
   }, [reports, selectedClient]);
 
@@ -181,12 +181,12 @@ Gerado em: ${new Date().toLocaleString('pt-BR')}
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
               <CardTitle>Histórico de Relatórios</CardTitle>
-              <Select value={selectedClient} onValueChange={setSelectedClient}>
+              <Select value={selectedClient || "all"} onValueChange={setSelectedClient}>
                 <SelectTrigger className="w-64">
                   <SelectValue placeholder="Filtrar por cliente" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos os clientes</SelectItem>
+                  <SelectItem value="all">Todos os clientes</SelectItem>
                   {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.nome}
